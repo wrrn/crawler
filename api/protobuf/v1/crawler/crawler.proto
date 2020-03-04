@@ -1,0 +1,59 @@
+syntax = "proto3";
+
+package crawler.v1;
+
+option go_package = "github.com/wrrn/crawler/pkg/crawler";
+
+service Crawler {
+  // Start signals the service to start crawling the given URL.
+  rpc Start(StartRequest) returns (StartResponse){};
+
+  // Stop signals the service to stop crawling the given URL.
+  rpc Stop(StopRequest) returns (StopRequest){};
+
+  // Show the current site tree for all the given URLs.
+  rpc List(ListRequest) returns (ListResponse){};
+}
+
+// StartRequest is sent to the service to indicate the URL it should start crawling.
+message StartRequest {
+  string url = 1;
+};
+
+// StartResponse indicates a success, but has no fields.
+message StartResponse{};
+
+// StopRequest is sent to the service to indicate which URL it should stop crawling.
+message StopRequest {
+  string url = 1;
+};
+
+// StartResponse indicates a success, but has no fields.
+message StopResponse{};
+
+// ListRequest tells the service to return the "site tree" for the all the crawled URLs.
+message ListRequest{};
+
+// ListResponse contains the "site trees" for all of the crawled URLs.
+message ListResponse { 
+  repeated SiteTree site_trees = 1;
+};
+
+// SiteTree represents a single url's site tree.
+message SiteTree {
+  string url = 1;
+  repeated Tree tree = 2;
+};
+
+// Tree represents a site's directory tree. A tree that does not have children is considered a leaf node.
+message Tree {
+  string name = 1;
+  repeated Tree children = 2;
+};
+
+
+
+
+
+
+  
