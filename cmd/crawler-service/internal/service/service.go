@@ -26,8 +26,9 @@ func (s *Service) Start(_ context.Context, req *pb.StartRequest) (*pb.StartRespo
 	}
 
 	// Adding more url validation here would be good.
-	spider := &spider.Spider{URL: req.GetUrl()}
-	go spider.Crawl()
+
+	spider := spider.New()
+	go spider.Crawl(req.GetUrl())
 
 	s.addSpider(req.GetUrl(), spider)
 
@@ -41,9 +42,7 @@ func (s *Service) Stop(_ context.Context, req *pb.StopRequest) (*pb.StopResponse
 		return nil, status.Errorf(codes.InvalidArgument, "Start crawling %s before calling Stop", req.GetUrl())
 	}
 
-	if err := spider.Stop(); err != nil {
-		return nil, status.Errorf(codes.Internal, "Failed to crawl the URL %s: %v", req.GetUrl(), err)
-	}
+	spider.Stop()
 
 	s.addTree(req.GetUrl(), spider.SiteTree())
 
