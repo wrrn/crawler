@@ -1,11 +1,14 @@
-.PHONY: help proto
+.PHONY: help proto all
 DEFAULT_GOAL: help
 
-all: ## Build the client and server
+all: client server ## Build the client and server
 
 client: ## Build the client
+	go build ./cmd/crawler
 
 server: ## Build the server
+	go build ./cmd/crawler-service
+
 
 proto: ## Generate the protobuf code
 	mkdir -p pkg/crawler
