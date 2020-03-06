@@ -9,7 +9,7 @@ service Crawler {
   rpc Start(StartRequest) returns (StartResponse){};
 
   // Stop signals the service to stop crawling the given URL.
-  rpc Stop(StopRequest) returns (StopRequest){};
+  rpc Stop(StopRequest) returns (StopResponse){};
 
   // Show the current site tree for all the given URLs.
   rpc List(ListRequest) returns (ListResponse){};
