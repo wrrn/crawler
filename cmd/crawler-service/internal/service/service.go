@@ -2,6 +2,9 @@ package service
 
 import (
 	"context"
+	"log"
+	"net/url"
+	"strings"
 	"sync"
 
 	"github.com/wrrn/crawler/cmd/crawler-service/internal/site"
@@ -11,24 +14,42 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+// New returns a new Service that implements crawler.CrawlerService.
+func New() *Service {
+	return &Service{
+		activeSpiders: map[string]*spider.Spider{},
+		spidersLock:   &sync.RWMutex{},
+		trees:         map[string]site.Tree{},
+		treesLock:     &sync.RWMutex{},
+	}
+}
+
+// Service accepts incoming gRPC requests to Start and Stop crawling urls, and
+// list the site trees for all of the parsed URLs.
 type Service struct {
 	activeSpiders map[string]*spider.Spider
-	spidersLock   *sync.Mutex
+	spidersLock   *sync.RWMutex
 
+	// Use a map here so that we can just overwrite the existing site trees, when
+	// we receive a new request.
 	trees     map[string]site.Tree
 	treesLock *sync.RWMutex
 }
 
 // Start signals the service to start crawling the given URL.
 func (s *Service) Start(_ context.Context, req *pb.StartRequest) (*pb.StartResponse, error) {
-	if len(req.GetUrl()) == 0 {
-		return nil, status.Errorf(codes.InvalidArgument, "Cannot pass in an empty URL")
+	url, err := parseURL(req.GetUrl())
+	if err != nil {
+		log.Println("Failed parse the URL: %v", err)
+		return nil, status.Errorf(codes.InvalidArgument, "%s was not a valid URL", req.GetUrl())
 	}
 
-	// Adding more url validation here would be good.
+	if _, found := s.getSpider(req.GetUrl()); found {
+		return nil, status.Errorf(codes.FailedPrecondition, "Already crawling %s", req.GetUrl())
+	}
 
 	spider := spider.New()
-	go spider.Crawl(req.GetUrl())
+	go spider.Crawl(url)
 
 	s.addSpider(req.GetUrl(), spider)
 
@@ -37,14 +58,14 @@ func (s *Service) Start(_ context.Context, req *pb.StartRequest) (*pb.StartRespo
 
 // Stop signals the service to stop crawling the given URL.
 func (s *Service) Stop(_ context.Context, req *pb.StopRequest) (*pb.StopResponse, error) {
-	spider, found := s.removeSpider(req.GetUrl())
+	spider, found := s.getSpider(req.GetUrl())
 	if !found {
 		return nil, status.Errorf(codes.InvalidArgument, "Start crawling %s before calling Stop", req.GetUrl())
 	}
 
 	spider.Stop()
-
 	s.addTree(req.GetUrl(), spider.SiteTree())
+	s.removeSpider(req.GetUrl())
 
 	return &pb.StopResponse{}, nil
 }
@@ -52,6 +73,38 @@ func (s *Service) Stop(_ context.Context, req *pb.StopRequest) (*pb.StopResponse
 // Show the current site tree for all the given URLs.
 func (s *Service) List(context.Context, *pb.ListRequest) (*pb.ListResponse, error) {
 	return &pb.ListResponse{SiteTrees: s.getProtoTrees()}, nil
+}
+
+func parseURL(raw string) (*url.URL, error) {
+	if len(raw) == 0 {
+		return nil, errEmptyURL
+	}
+
+	url, err := url.Parse(raw)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(url.Host) == 0 && len(url.Path) == 0 {
+		return nil, errUnparsableURL
+	}
+
+	if len(url.Host) == 0 {
+		parts := strings.SplitN(url.Path, "/", 2)
+		if len(parts) == 1 {
+			url.Host = parts[0]
+			url.Path = ""
+		} else {
+			url.Host = parts[0]
+			url.Path = parts[1]
+		}
+	}
+
+	if len(url.Scheme) == 0 {
+		url.Scheme = "http"
+	}
+
+	return url, nil
 }
 
 // addSpider will associate the give spider with give URL so that it can stopped
@@ -65,12 +118,16 @@ func (s *Service) addSpider(url string, spider *spider.Spider) {
 // removeSpider removes the spider from active spider pool and returns the
 // spider. False will be returned if there isn't a spider crawling the given
 // url.
-func (s *Service) removeSpider(url string) (*spider.Spider, bool) {
+func (s *Service) removeSpider(url string) {
 	s.spidersLock.Lock()
-	spider, ok := s.activeSpiders[url]
 	delete(s.activeSpiders, url)
 	s.spidersLock.Unlock()
+}
 
+func (s *Service) getSpider(url string) (*spider.Spider, bool) {
+	s.spidersLock.RLock()
+	spider, ok := s.activeSpiders[url]
+	s.spidersLock.RUnlock()
 	return spider, ok
 }
 
@@ -83,7 +140,35 @@ func (s *Service) addTree(url string, tree site.Tree) {
 
 func (s *Service) getProtoTrees() []*pb.SiteTree {
 	s.treesLock.RLock()
-	// TODO(wh): Implement
-	s.treesLock.RUnlock()
-	return []*pb.SiteTree{}
+	defer s.treesLock.RUnlock()
+
+	trees := make([]*pb.SiteTree, 0, len(s.trees))
+	for site, tree := range s.trees {
+		trees = append(trees, &pb.SiteTree{
+			Url:  site,
+			Tree: treeToProto(tree),
+		})
+	}
+
+	return trees
+}
+
+func treeToProto(t site.Tree) *pb.Tree {
+	return &pb.Tree{
+		Name:     t.Root,
+		Children: treesToProto(t.Children),
+	}
+}
+
+func treesToProto(trees []*site.Tree) []*pb.Tree {
+	if len(trees) == 0 {
+		return []*pb.Tree{}
+	}
+
+	protoTrees := make([]*pb.Tree, 0, len(trees))
+	for _, t := range trees {
+		protoTrees = append(protoTrees, treeToProto(*t))
+	}
+
+	return protoTrees
 }

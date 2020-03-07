@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"sort"
 
 	"github.com/wrrn/crawler/pkg/crawler"
+	"github.com/xlab/treeprint"
 	"google.golang.org/grpc"
 )
 
@@ -20,9 +22,6 @@ var (
 
 func main() {
 	var (
-		insecure = flag.Bool("insecure", false, "use an insecure client connection")
-		// TODO(wh): Remove insecure
-		_          = insecure
 		serverAddr = flag.String("service-addr", "localhost:5555", "the address of the crawler-service")
 		startURL   = flag.String("start", "", "the url to start crawling")
 		stopURL    = flag.String("stop", "", "the url to stop crawling")
@@ -60,6 +59,7 @@ func main() {
 
 		cancel()
 	}()
+
 	// Send the information over the wire
 	// TODO(wh): Is there better way to handle this than with a switch statement.
 	switch {
@@ -81,8 +81,12 @@ func main() {
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to send the list request to %s: %v", *serverAddr, err)
 		}
-
-		printSiteTree(listResponse)
+		// Sort the list of sites so we get nice output
+		siteTrees := listResponse.GetSiteTrees()
+		sort.Slice(siteTrees, func(i, j int) bool {
+			return siteTrees[i].GetUrl() < siteTrees[j].GetUrl()
+		})
+		printSiteTrees(siteTrees)
 	}
 
 }
@@ -106,6 +110,30 @@ func validateFlags() error {
 	return nil
 }
 
-func printSiteTree(listResponse *crawler.ListResponse) {
-	fmt.Println(listResponse)
+func printSiteTrees(siteTrees []*crawler.SiteTree) {
+	trees := make([]treeprint.Tree, 0, len(siteTrees))
+	for _, site := range siteTrees {
+		trees = append(trees, buildTree(site.GetTree()))
+	}
+
+	for _, tree := range trees {
+		fmt.Println(tree.String())
+	}
+}
+
+func buildTree(t *crawler.Tree) treeprint.Tree {
+	tree := treeprint.New()
+	tree.SetValue(t.GetName())
+	for _, child := range t.GetChildren() {
+		addTreeBranch(tree, child)
+	}
+
+	return tree
+}
+
+func addTreeBranch(tree treeprint.Tree, subTree *crawler.Tree) {
+	branch := tree.AddBranch(subTree.GetName())
+	for _, child := range subTree.GetChildren() {
+		addTreeBranch(branch, child)
+	}
 }

@@ -42,7 +42,7 @@ message ListResponse {
 // SiteTree represents a single url's site tree.
 message SiteTree {
   string url = 1;
-  repeated Tree tree = 2;
+  Tree tree = 2;
 };
 
 // Tree represents a site's directory tree. A tree that does not have children is considered a leaf node.

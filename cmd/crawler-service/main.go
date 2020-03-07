@@ -23,9 +23,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	service := &service.Service{}
 	server := grpc.NewServer()
-	crawler.RegisterCrawlerServer(server, service)
+	crawler.RegisterCrawlerServer(server, service.New())
 
 	server.Serve(listener)
 }
