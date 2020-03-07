@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"log"
 	"net/url"
 	"strings"
 	"sync"
@@ -24,14 +23,14 @@ func New() *Service {
 	}
 }
 
-// Service accepts incoming gRPC requests to Start and Stop crawling urls, and
-// list the site trees for all of the parsed URLs.
+// Service accepts incoming gRPC requests to start and stop crawling urls, and
+// to list the site trees for all of the parsed URLs.
 type Service struct {
 	activeSpiders map[string]*spider.Spider
 	spidersLock   *sync.RWMutex
 
 	// Use a map here so that we can just overwrite the existing site trees, when
-	// we receive a new request.
+	// we receive a new request. Also gives us faster lookups for start and stop.
 	trees     map[string]site.Tree
 	treesLock *sync.RWMutex
 }
@@ -40,7 +39,6 @@ type Service struct {
 func (s *Service) Start(_ context.Context, req *pb.StartRequest) (*pb.StartResponse, error) {
 	url, err := parseURL(req.GetUrl())
 	if err != nil {
-		log.Println("Failed parse the URL: %v", err)
 		return nil, status.Errorf(codes.InvalidArgument, "%s was not a valid URL", req.GetUrl())
 	}
 
@@ -75,6 +73,10 @@ func (s *Service) List(context.Context, *pb.ListRequest) (*pb.ListResponse, erro
 	return &pb.ListResponse{SiteTrees: s.getProtoTrees()}, nil
 }
 
+// parseURL will convert the string into an url.URL. It will return errors if
+// the given string is empty, the string is not a parsable url, or the host
+// cannot be determined. If the string doesn't have a scheme (https, http, ...)
+// then http will be added as the scheme.
 func parseURL(raw string) (*url.URL, error) {
 	if len(raw) == 0 {
 		return nil, errEmptyURL
@@ -155,7 +157,7 @@ func (s *Service) getProtoTrees() []*pb.SiteTree {
 
 func treeToProto(t site.Tree) *pb.Tree {
 	return &pb.Tree{
-		Name:     t.Root,
+		Name:     t.Value,
 		Children: treesToProto(t.Children),
 	}
 }

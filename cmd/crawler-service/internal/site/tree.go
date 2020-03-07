@@ -7,7 +7,7 @@ import (
 
 // Tree is a representation of a site tree.
 type Tree struct {
-	Root     string
+	Value    string
 	Children []*Tree
 }
 
@@ -29,22 +29,22 @@ func (t *Tree) Add(path string) {
 
 func (t *Tree) add(root string, descendants ...string) {
 	// It already exists so we don't need to add it to the tree.
-	if t.Root == root {
+	if t.Value == root {
 		return
 	}
 
 	// Find where we should insert the current root.
-	i := sort.Search(len(t.Children), func(i int) bool { return t.Children[i].Root >= root })
+	i := sort.Search(len(t.Children), func(i int) bool { return t.Children[i].Value >= root })
 
-	// If we didn't find the root in the list of children then just insert all the children here.
-	if i == len(t.Children) || t.Children[i].Root != root {
+	// If we didn't find the root in the list of children then just insert all the children here to speed things up.
+	if i == len(t.Children) || t.Children[i].Value != root {
 		// Create our own subtree because we haven't seen anything with this root
-		subTree := &Tree{Root: root}
+		subTree := &Tree{Value: root}
 		parent := subTree
 
 		// Walk down the list descendants and add them as subtrees to each other.
 		for _, d := range descendants {
-			parent.Children = []*Tree{{Root: d}}
+			parent.Children = []*Tree{{Value: d}}
 			parent = parent.Children[0]
 		}
 

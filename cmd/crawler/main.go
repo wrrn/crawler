@@ -41,9 +41,8 @@ func main() {
 	//	Create the client
 	conn, err := grpc.Dial(*serverAddr, grpc.WithInsecure())
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to dial %s: %v\n", *serverAddr, err)
-		os.Exit(2)
-		// We don't need to return here because os.Exit will handle that for us.
+		exit(2, fmt.Sprintf("Failed to dial %s: %v\n", *serverAddr, err))
+		// We don't need to return here because exit will handle that for us.
 	}
 
 	client := crawler.NewCrawlerClient(conn)
@@ -67,21 +66,23 @@ func main() {
 		// We don't care about the output of Start because it returns an empty response.
 		_, err := client.Start(ctx, &crawler.StartRequest{Url: *startURL})
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to send the start request to %s: %v", *serverAddr, err)
+			exit(3, fmt.Sprintf("Failed to send the start request to %s: %v", *serverAddr, err))
 		}
+
 	case len(*stopURL) > 0:
 		// We don't care about the output of Stop because it returns an empty response.
 		_, err := client.Stop(ctx, &crawler.StopRequest{Url: *stopURL})
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to send the stop request to %s: %v", *serverAddr, err)
+			exit(3, fmt.Sprint("Failed to send the stop request to %s: %v", *serverAddr, err))
 		}
 
 	case *list:
 		listResponse, err := client.List(ctx, &crawler.ListRequest{})
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to send the list request to %s: %v", *serverAddr, err)
+			exit(3, fmt.Sprintf("Failed to send the list request to %s: %v", *serverAddr, err))
 		}
-		// Sort the list of sites so we get nice output
+
+		// Sort the list of sites so that we get nice output.
 		siteTrees := listResponse.GetSiteTrees()
 		sort.Slice(siteTrees, func(i, j int) bool {
 			return siteTrees[i].GetUrl() < siteTrees[j].GetUrl()
@@ -91,6 +92,8 @@ func main() {
 
 }
 
+// validateFlags returns an error a command (start,stop,list) wasn't passed in
+// via the command line or if multiple commands were passed in.
 func validateFlags() error {
 	var commandsSeen int8
 	flag.Visit(func(f *flag.Flag) {
@@ -110,6 +113,7 @@ func validateFlags() error {
 	return nil
 }
 
+// printSiteTrees will print an the siteTrees in alphanumeric order.
 func printSiteTrees(siteTrees []*crawler.SiteTree) {
 	trees := make([]treeprint.Tree, 0, len(siteTrees))
 	for _, site := range siteTrees {
@@ -121,6 +125,7 @@ func printSiteTrees(siteTrees []*crawler.SiteTree) {
 	}
 }
 
+// buildTree converts a crawler.Tree to a printable tree.
 func buildTree(t *crawler.Tree) treeprint.Tree {
 	tree := treeprint.New()
 	tree.SetValue(t.GetName())
@@ -131,9 +136,16 @@ func buildTree(t *crawler.Tree) treeprint.Tree {
 	return tree
 }
 
+// addTreeBranch adds the crawler.Tree as a branch to the printable tree.
 func addTreeBranch(tree treeprint.Tree, subTree *crawler.Tree) {
 	branch := tree.AddBranch(subTree.GetName())
 	for _, child := range subTree.GetChildren() {
 		addTreeBranch(branch, child)
 	}
+}
+
+// exit is convenience for exiting an printing a message.
+func exit(code int, message string) {
+	fmt.Fprintln(os.Stderr, message)
+	os.Exit(code)
 }

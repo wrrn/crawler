@@ -23,6 +23,7 @@ func main() {
 		os.Exit(1)
 	}
 
+	// TODO(wh): Setup to use TLS.
 	server := grpc.NewServer()
 	crawler.RegisterCrawlerServer(server, service.New())
 
