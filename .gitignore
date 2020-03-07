@@ -1,0 +1,6 @@
+# Ignore the crawler-service and crawler binaries but not the directories
+crawler
+crawler-service
+
+!crawler/
+!crawler-service/
