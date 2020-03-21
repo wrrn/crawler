@@ -17,9 +17,9 @@ import (
 func New() *Service {
 	return &Service{
 		activeSpiders: map[string]*spider.Spider{},
-		spidersLock:   &sync.RWMutex{},
+		spidersLock:   sync.RWMutex{},
 		trees:         map[string]site.Tree{},
-		treesLock:     &sync.RWMutex{},
+		treesLock:     sync.RWMutex{},
 	}
 }
 
@@ -27,12 +27,12 @@ func New() *Service {
 // to list the site trees for all of the parsed URLs.
 type Service struct {
 	activeSpiders map[string]*spider.Spider
-	spidersLock   *sync.RWMutex
+	spidersLock   sync.RWMutex
 
 	// Use a map here so that we can just overwrite the existing site trees, when
 	// we receive a new request. Also gives us faster lookups for start and stop.
 	trees     map[string]site.Tree
-	treesLock *sync.RWMutex
+	treesLock sync.RWMutex
 }
 
 // Start signals the service to start crawling the given URL.
